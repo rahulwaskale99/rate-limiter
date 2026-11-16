@@ -1,103 +1,65 @@
 # rate-limiter
 
-A zero-dependency Java 21 library implementing classic rate-limiting algorithms with genuinely correct concurrency — lock-free CAS loops on the hot path, a real concurrency stress test in the suite, and deterministic unit tests via an injected clock.
+A small Java 21 library for deciding whether a request should be allowed through.
 
-Built as a focused exercise in production-grade concurrent Java: every design decision (why CAS over `synchronized`, when `synchronized` is the honest choice, how to make time-based logic testable) is documented in the code.
+It has three familiar algorithms: token bucket, sliding window log, and fixed window. There are no runtime dependencies. I built it to get hands-on with concurrency, time-based state, and the trade-offs behind each approach.
 
-## Algorithms
+## Pick an algorithm
 
-### Token bucket
-```
- permits
-   10 ┤ ██████████  ← burst allowed up to capacity
-      │      ░░░░░ ← refills continuously at N permits/sec
-    0 └──────────────→ time
-```
-Allows bursts up to `capacity`, then throttles to the steady refill rate. The default choice for API throttling.
+| Algorithm | What it does | Useful when |
+|---|---|---|
+| Token bucket | Keeps a bucket of permits and refills it over time. Allows short bursts. | You want to absorb bursts but still enforce a steady rate. |
+| Sliding window log | Tracks accepted event times and checks the exact trailing window. | The limit must hold across every point in the window. |
+| Fixed window | Counts permits inside aligned time windows. | You want a simple, low-memory counter and can accept boundary bursts. |
 
-### Sliding window log
-```
-        ┌───── window (1s) ─────┐
- events │ ● ● ●          → rejected
-        └──●───────────────────┘
-          ↑
-     event expires → slot frees
-```
-Exact counting: at most N events in *any* trailing window, no boundary bursts. Costs a timestamp per accepted event.
+A fixed window can allow close to twice the configured limit around a boundary. The sliding window avoids that, but has to keep timestamps for accepted events. The token bucket sits somewhere in between: bursts are allowed, but only up to its capacity.
 
-### Fixed window
-```
- |── window 1 ──|── window 2 ──|
-      ● ● ● ●     ● ● ● ●
-                    ↑ can burst 2x across the boundary
-```
-Cheapest (two fields, one CAS), but allows up to 2x the limit across a window boundary. Included as the baseline.
-
-## When to use which
-
-| | Token bucket | Sliding window | Fixed window |
-|---|---|---|---|
-| Burst tolerance | configurable | none | none (but 2x boundary leak) |
-| Memory | O(1) | O(events in window) | O(1) |
-| Locking | lock-free CAS | short synchronized section | lock-free CAS |
-| Best for | APIs, throttling | strict quotas | coarse counters |
-
-## Usage
+## Use it
 
 ```java
-RateLimiter limiter = RateLimiterFactory.tokenBucket(100, 10); // burst 100, refill 10/sec
+import com.ratelimiter.core.RateLimitResult;
+import com.ratelimiter.core.RateLimiter;
+import com.ratelimiter.core.RateLimiterFactory;
 
-if (limiter.tryAcquire()) {
+RateLimiter limiter = RateLimiterFactory.tokenBucket(100, 10);
+RateLimitResult result = limiter.tryAcquireWithDetail();
+
+if (result.allowed()) {
     handleRequest();
 } else {
-    RateLimitResult detail = limiter.tryAcquireWithDetail();
-    respondWith429(detail.retryAfterMillis()); // e.g. Retry-After header
+    // Use this value when building an HTTP 429 response.
+    long retryAfterMillis = result.retryAfterMillis();
 }
 ```
 
-Run the live demo (50 virtual threads hammering one bucket):
+If you only need a yes/no decision, use `tryAcquire()`. You can also acquire more than one permit atomically with `tryAcquire(int permits)`.
 
+## A few implementation details
+
+- The token bucket stores its state in an immutable snapshot and updates it with a compare-and-set loop. Contending threads retry if another thread wins the update.
+- The fixed window also uses atomic state updates. The sliding window uses a short synchronized section to manage its event timestamps; it is not lock-free.
+- Time is supplied through a `LongSupplier`. Tests can move a fake clock forward instead of sleeping and hoping the timing is right.
+- The limiters do not wait for permits. A rejected call returns immediately, with retry information available from `RateLimitResult`.
+
+The code is intentionally small so the algorithm and its concurrency behaviour are easy to follow.
+
+## Run it
+
+Requires JDK 21 and Maven.
+
+```bash
+mvn test
+mvn package
 ```
+
+Run the demo:
+
+```bash
 mvn -q compile exec:java -Dexec.mainClass=com.ratelimiter.demo.RateLimiterDemo
 ```
 
-or after packaging:
+## What is not included yet
 
-```
-java -cp target/classes com.ratelimiter.demo.RateLimiterDemo
-```
+This is an in-memory library. It does not coordinate limits across multiple application instances, and it does not provide a Spring Boot integration or per-user registry.
 
-## Testability
-
-All limiters accept a `LongSupplier nanoTimeSupplier` so tests control time instead of sleeping:
-
-```java
-AtomicLong fakeNanos = new AtomicLong();
-var limiter = new TokenBucketRateLimiter(10, 5, fakeNanos::get);
-limiter.tryAcquire();
-fakeNanos.addAndGet(200_000_000L); // advance 200ms deterministically
-```
-
-`ConcurrencyStressTest` is the opposite: real virtual threads, real clock — 1000 threads race for 100 permits and the suite asserts *exactly* 100 are admitted (no over-admission, no lost updates).
-
-## Building
-
-```
-mvn test        # run the suite
-mvn package     # build the jar
-```
-
-Requires JDK 21 (virtual threads).
-
-## Roadmap
-
-- [ ] Leaky bucket (smooth-output variant) implementation
-- [ ] Composite limiters: AND / OR combinators over multiple limiters
-- [ ] Weighted permits (cost per request, not just count)
-- [ ] Keyed registry: one limiter per API key / user id with weak cleanup
-- [ ] Warm-up limiter (gradual ramp from cold start, like Guava's SmoothWarmingUp)
-- [ ] Micrometer metrics hook (accepted/rejected counters per limiter)
-- [ ] Redis-backed distributed token bucket (Lua script, single round trip)
-- [ ] Spring Boot starter: `@RateLimit` annotation on controller methods
-- [ ] JMH benchmark module: CAS loop vs synchronized under contention
-- [ ] Documentation site / architecture decision records
+Some useful next steps would be a Redis-backed implementation, a Spring Boot starter, weighted permits, and benchmarks under contention. Those are ideas for future work, not features in the current version.
