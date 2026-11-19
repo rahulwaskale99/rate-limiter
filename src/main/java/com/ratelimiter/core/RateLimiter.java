@@ -3,14 +3,17 @@ package com.ratelimiter.core;
 /**
  * Contract for all rate limiter implementations.
  *
- * <p>Implementations must be thread-safe and non-blocking: every method returns
- * immediately instead of parking the calling thread. Callers that want to wait
- * can use {@link RateLimitResult#retryAfterMillis()} to back off before retrying.
+ * <p>Implementations must be thread-safe and must not wait for a permit:
+ * each acquire call returns an allow/reject decision instead of waiting for
+ * capacity to become available. An implementation may still use a short
+ * internal synchronization mechanism, so this contract does not promise
+ * lock-free execution. Callers that want to wait can use
+ * {@link RateLimitResult#retryAfterMillis()} to back off before retrying.
  */
 public interface RateLimiter {
 
     /**
-     * Tries to acquire a single permit without blocking.
+     * Tries to acquire a single permit without waiting for capacity.
      *
      * @return true if the permit was granted
      */
