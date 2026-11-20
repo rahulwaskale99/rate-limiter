@@ -39,7 +39,7 @@ If you only need a yes/no decision, use `tryAcquire()`. You can also acquire mor
 - The token bucket stores its state in an immutable snapshot and updates it with a compare-and-set loop. Contending threads retry if another thread wins the update.
 - The fixed window also uses atomic state updates. The sliding window uses a short synchronized section to manage its event timestamps; it is not lock-free.
 - Time is supplied through a `LongSupplier`. Tests can move a fake clock forward instead of sleeping and hoping the timing is right.
-- The limiters do not wait for permits. A rejected call returns immediately, with retry information available from `RateLimitResult`.
+- Calls do not sleep or queue while waiting for a permit; they return an allow/reject decision. That is different from lock-free execution: the sliding-window implementation can briefly wait to enter its internal monitor. Rejected calls include retry information in `RateLimitResult`.
 
 The code is intentionally small so the algorithm and its concurrency behaviour are easy to follow.
 
