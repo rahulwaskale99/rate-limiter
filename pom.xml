@@ -10,7 +10,7 @@
   <packaging>jar</packaging>
 
   <name>rate-limiter</name>
-  <description>Zero-dependency rate limiting library for the JVM: token bucket, sliding window and fixed window, with lock-free hot paths</description>
+  <description>Zero-dependency JVM rate limiter with token bucket, sliding window and fixed window algorithms</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
