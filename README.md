@@ -2,17 +2,18 @@
 
 A small Java 21 library for deciding whether a request should be allowed through.
 
-It has three familiar algorithms: token bucket, sliding window log, and fixed window. There are no runtime dependencies. I built it to get hands-on with concurrency, time-based state, and the trade-offs behind each approach.
+It has four familiar algorithms: token bucket, leaky bucket, sliding window log, and fixed window. There are no runtime dependencies. I built it to get hands-on with concurrency, time-based state, and the trade-offs behind each approach.
 
 ## Pick an algorithm
 
 | Algorithm | What it does | Useful when |
 |---|---|---|
 | Token bucket | Keeps a bucket of permits and refills it over time. Allows short bursts. | You want to absorb bursts but still enforce a steady rate. |
+| Leaky bucket | Absorbs bursts into a virtual queue that drains at a constant rate. | The downstream cannot tolerate bursts; the outflow must stay smooth. |
 | Sliding window log | Tracks accepted event times and checks the exact trailing window. | The limit must hold across every point in the window. |
 | Fixed window | Counts permits inside aligned time windows. | You want a simple, low-memory counter and can accept boundary bursts. |
 
-A fixed window can allow close to twice the configured limit around a boundary. The sliding window avoids that, but has to keep timestamps for accepted events. The token bucket sits somewhere in between: bursts are allowed, but only up to its capacity.
+A fixed window can allow close to twice the configured limit around a boundary. The sliding window avoids that, but has to keep timestamps for accepted events. The token bucket sits somewhere in between: bursts are allowed, but only up to its capacity. The leaky bucket also absorbs bursts, but time lowers its queue level instead of building up credit, so a caller that waited gets a smooth drip rather than a fresh burst.
 
 ## Use it
 
@@ -37,6 +38,7 @@ If you only need a yes/no decision, use `tryAcquire()`. You can also acquire mor
 ## A few implementation details
 
 - The token bucket stores its state in an immutable snapshot and updates it with a compare-and-set loop. Contending threads retry if another thread wins the update.
+- The leaky bucket follows the same compare-and-set pattern. The difference is what time does: it lowers the queued level instead of refilling credit, which is why the output rate stays smooth even after a long wait.
 - The fixed window also uses atomic state updates. The sliding window uses a short synchronized section to manage its event timestamps; it is not lock-free.
 - Time is supplied through a `LongSupplier`. Tests can move a fake clock forward instead of sleeping and hoping the timing is right.
 - Calls do not sleep or queue while waiting for a permit; they return an allow/reject decision. That is different from lock-free execution: the sliding-window implementation can briefly wait to enter its internal monitor. Rejected calls include retry information in `RateLimitResult`.

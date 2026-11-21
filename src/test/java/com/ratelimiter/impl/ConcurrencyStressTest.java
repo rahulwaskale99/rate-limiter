@@ -30,6 +30,12 @@ class ConcurrencyStressTest {
     }
 
     @Test
+    void leakyBucketNeverOverAdmitsUnderContention() throws Exception {
+        RateLimiter limiter = new LeakyBucketRateLimiter(LIMIT, 0); // fixed pool, no drain
+        assertExactlyLimitAdmitted(limiter);
+    }
+
+    @Test
     void slidingWindowNeverOverAdmitsUnderContention() throws Exception {
         RateLimiter limiter = new SlidingWindowRateLimiter(LIMIT, Duration.ofHours(1));
         assertExactlyLimitAdmitted(limiter);

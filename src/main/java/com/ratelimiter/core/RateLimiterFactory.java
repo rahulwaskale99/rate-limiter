@@ -1,6 +1,7 @@
 package com.ratelimiter.core;
 
 import com.ratelimiter.impl.FixedWindowRateLimiter;
+import com.ratelimiter.impl.LeakyBucketRateLimiter;
 import com.ratelimiter.impl.SlidingWindowRateLimiter;
 import com.ratelimiter.impl.TokenBucketRateLimiter;
 
@@ -21,6 +22,15 @@ public final class RateLimiterFactory {
      */
     public static RateLimiter tokenBucket(double capacity, double refillPerSecond) {
         return new TokenBucketRateLimiter(capacity, refillPerSecond);
+    }
+
+    /**
+     * Leaky bucket: absorbs bursts up to {@code capacity} and drains at a
+     * constant {@code leakPerSecond} permits/second, so the downstream sees a
+     * smooth outflow. Use when the consumer cannot tolerate bursts.
+     */
+    public static RateLimiter leakyBucket(double capacity, double leakPerSecond) {
+        return new LeakyBucketRateLimiter(capacity, leakPerSecond);
     }
 
     /**
