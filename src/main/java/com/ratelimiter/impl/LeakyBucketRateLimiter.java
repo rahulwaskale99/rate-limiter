@@ -7,28 +7,26 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
- * Leaky bucket (smooth-output variant).
+ * Leaky-bucket-style admission limiter using a virtual backlog.
  *
- * <p>Accepted requests pour into a virtual bucket; the bucket drains at a
- * constant {@code leakPerSecond} rate. Acceptance is bounded by the bucket
- * {@code capacity}, so bursts are absorbed, while the <em>effective</em>
- * outflow the downstream system experiences is smoothed to the leak rate.
- * This is the shape you want when the consumer cannot tolerate bursts at all
- * — for example a partner API that meters requests per second strictly.
+ * <p>Each accepted request adds to the backlog, and elapsed time drains it at
+ * the configured {@code leakPerSecond} rate. A request is admitted only when
+ * the resulting backlog stays within {@code capacity}. When the backlog has
+ * drained to zero, the full capacity is available again, so an idle limiter
+ * can admit a burst up to that capacity.
  *
- * <p><strong>How it differs from the token bucket.</strong> Both are CAS-based
- * and O(1), and both admit an initial burst up to capacity. The difference is
- * what time does: in the token bucket, idle time accumulates as credit and a
- * later burst can run at full speed; in the leaky bucket, time only lowers
- * the queue level, so the caller is throttled to a steady drip regardless of
- * how long they waited. Token bucket = generous to well-behaved callers;
- * leaky bucket = protective of a fixed-throughput downstream.
+ * <p>This implementation only makes an allow/reject decision. It does not
+ * enqueue accepted work or schedule its execution, so it does not guarantee
+ * smooth downstream dispatch. Use a queue and scheduler when actual traffic
+ * shaping is required. With the same capacity and rate, this virtual-backlog
+ * representation has the same admission envelope as a token bucket; it
+ * expresses state as queued work rather than available credit.
  *
- * <p><strong>Concurrency design.</strong> Identical pattern to
- * {@link TokenBucketRateLimiter}: an {@link AtomicReference} to an immutable
- * {@code (level, lastDrainNanos)} cell, CAS retry loop on every acquire, lazy
- * time-to-level conversion, and rejected acquires still commit the drain
- * progress so elapsed time is never double-counted.
+ * <p><strong>Concurrency design.</strong> State is kept in an
+ * {@link AtomicReference} to an immutable {@code (level, lastDrainNanos)}
+ * cell. Each acquire uses a CAS retry loop, lazy time-to-level conversion,
+ * and rejected acquires still commit drain progress so elapsed time is never
+ * double-counted.
  *
  * <p>The {@code nanoTimeSupplier} constructor parameter exists purely for
  * deterministic testing.
