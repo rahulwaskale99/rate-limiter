@@ -25,9 +25,11 @@ public final class RateLimiterFactory {
     }
 
     /**
-     * Leaky bucket: absorbs bursts up to {@code capacity} and drains at a
-     * constant {@code leakPerSecond} permits/second, so the downstream sees a
-     * smooth outflow. Use when the consumer cannot tolerate bursts.
+     * Leaky-bucket-style admission control: accepted permits add to a virtual
+     * backlog that drains at {@code leakPerSecond} permits/second. This method
+     * returns an allow/reject decision immediately; it does not queue requests
+     * or pace their downstream execution. Use a queue and scheduler if actual
+     * traffic shaping is required.
      */
     public static RateLimiter leakyBucket(double capacity, double leakPerSecond) {
         return new LeakyBucketRateLimiter(capacity, leakPerSecond);
