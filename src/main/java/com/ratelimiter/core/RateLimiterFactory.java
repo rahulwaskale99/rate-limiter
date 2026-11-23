@@ -45,9 +45,10 @@ public final class RateLimiterFactory {
     }
 
     /**
-     * Fixed window: at most {@code maxEvents} events per aligned window of
-     * {@code window} duration. Cheapest, but allows up to 2x {@code maxEvents}
-     * across a window boundary.
+     * Fixed window: at most {@code maxEvents} events per fixed-duration window.
+     * The first window begins when the limiter is created; rollover is lazy on
+     * the first acquire after the duration elapses. Cheapest, but allows up to
+     * 2x {@code maxEvents} across a window boundary.
      */
     public static RateLimiter fixedWindow(int maxEvents, Duration window) {
         return new FixedWindowRateLimiter(maxEvents, window);
