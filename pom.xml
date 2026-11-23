@@ -10,7 +10,7 @@
   <packaging>jar</packaging>
 
   <name>rate-limiter</name>
-  <description>Zero-dependency JVM rate limiter with token bucket, sliding window and fixed window algorithms</description>
+  <description>Zero-dependency JVM rate limiter with token bucket, leaky bucket, sliding window log and fixed window algorithms</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -36,8 +36,8 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
+        <artifactId>maven-compiler-plugin</artifactId>
       </plugin>
     </plugins>
   </build>
