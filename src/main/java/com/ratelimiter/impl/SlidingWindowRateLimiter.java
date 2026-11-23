@@ -19,9 +19,9 @@ import java.util.function.LongSupplier;
  * this implementation guards its deque with a {@code synchronized} block. The
  * window accounting needs a consistent read-evict-count-append sequence over
  * multiple entries, which a single CAS cell cannot express. The critical
- * section is tiny (a few deque operations), so under contention this behaves
- * like a short lock, not a bottleneck — a deliberate trade of throughput for
- * exactness, and the reason the token bucket remains the default choice.
+ * section contains a small number of deque operations, but all callers still
+ * serialize on the monitor. This is a deliberate trade of concurrency for
+ * exactness, and one reason the token bucket remains the default choice.
  *
  * <p>Cost is O(window events) per acquire in the worst case (eviction scan),
  * so very large windows with very high limits favor the token bucket.
