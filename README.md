@@ -11,7 +11,7 @@ It has four algorithms: token bucket, leaky bucket, sliding window log, and fixe
 | Token bucket | Keeps a bucket of permits and refills it over time. Allows short bursts. | You want to absorb bursts but still enforce a steady admission rate. |
 | Leaky bucket (virtual backlog) | Adds accepted permits to a backlog that drains at a configured rate. | You want an admission limit expressed as outstanding work, with a fixed backlog capacity. |
 | Sliding window log | Tracks accepted event times and checks the exact trailing window. | The limit must hold across every point in the window. |
-| Fixed window | Counts permits in consecutive fixed-duration windows, starting when the limiter is created. | You want a simple, low-memory counter and can accept boundary bursts. |
+| Fixed window | Counts permits in a fixed-duration window; after expiry, the next window begins on the next acquire. | You want a simple, low-memory counter and can accept boundary bursts. |
 
 The fixed-window counter starts when the limiter is created and rolls over lazily on the first acquire after the duration elapses; its boundaries are not aligned to wall-clock time. It can allow close to twice the configured limit around a boundary. The sliding window avoids that, but has to keep timestamps for accepted events. The token bucket allows bursts up to its capacity and rebuilds credit over time. The leaky-bucket implementation here represents the same admission envelope as virtual backlog instead of available credit: accepted permits raise the backlog, and elapsed time drains it.
 
