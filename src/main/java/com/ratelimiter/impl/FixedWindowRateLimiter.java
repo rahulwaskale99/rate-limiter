@@ -8,12 +8,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
- * Fixed window limiter: at most {@code maxEvents} events per aligned window
- * of {@code window} duration. Cheapest of the three algorithms (two fields of
- * state, one CAS) but it allows a burst of {@code maxEvents} at the end of one
- * window followed immediately by {@code maxEvents} more at the start of the
- * next — up to 2x the limit across a boundary. Included as the baseline the
- * other two algorithms improve on.
+ * Fixed window limiter: at most {@code maxEvents} events per
+ * {@code window} duration. The first window starts when the limiter is
+ * created; each later window starts lazily on the first acquire after the
+ * previous window expires. This is the cheapest of the four algorithms
+ * (two fields of state, one CAS), but it allows a burst of {@code maxEvents}
+ * at the end of one window followed immediately by {@code maxEvents} more at
+ * the start of the next — up to 2x the limit across a boundary.
  *
  * <p><strong>Concurrency design.</strong> A single {@link AtomicReference} to
  * an immutable {@code WindowState(startNanos, count)} cell, updated with the
